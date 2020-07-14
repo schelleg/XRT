@@ -1,4 +1,4 @@
-/**
+ /**
  * Copyright (C) 2016-2020 Xilinx, Inc
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may
@@ -24,10 +24,14 @@
 #include "experimental/xrt_kernel.h"
 #include "experimental/xrt_bo.h"
 
+// Pybind11
+// #include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
+
 // This value is shared with worgroup size in kernel.cl
 static const int COUNT = 1024;
 
-static void usage()
+void usage()
 {
     std::cout << "usage: %s [options] -k <bitstream>\n\n";
     std::cout << "  -k <bitstream>\n";
@@ -37,7 +41,7 @@ static void usage()
     std::cout << "* Bitstream is required\n";
 }
 
-static int run(const xrt::device& device, const xrt::uuid& uuid, bool verbose)
+int run(const xrt::device& device, const xrt::uuid& uuid, bool verbose)
 {
   const size_t DATA_SIZE = COUNT * sizeof(int);
 
@@ -75,10 +79,14 @@ static int run(const xrt::device& device, const xrt::uuid& uuid, bool verbose)
   return 0;
 }
 
+
+
 int
-run(int argc, char** argv)
+run_it(std::vector<std::string> &args)
 {
-  if (argc < 3) {
+  auto argc = args.size();
+
+  if (argc < 2) {
     usage();
     return 1;
   }
@@ -87,9 +95,8 @@ run(int argc, char** argv)
   bool verbose = false;
   unsigned int device_index = 0;
 
-  std::vector<std::string> args(argv+1,argv+argc);
   std::string cur;
-  for (auto& arg : args) {
+  for (auto arg : args) {
     if (arg == "-h") {
       usage();
       return 1;
@@ -121,9 +128,10 @@ run(int argc, char** argv)
   auto device = xrt::device(device_index);
   auto uuid = device.load_xclbin(xclbin_fnm);
   run(device, uuid, verbose);
+
   return 0;
 }
-
+/*
 int main(int argc, char** argv)
 {
   try {
@@ -139,4 +147,17 @@ int main(int argc, char** argv)
 
   std::cout << "PASSED TEST\n";
   return 0;
+}
+*/
+
+namespace py = pybind11;
+
+PYBIND11_MODULE(mainpybind, m) {
+    // optional module docstring
+    m.doc() = "pybind11 with XRT 02_simple";
+
+    // define add function
+    m.def("usage", &usage, "doctring for run");
+    m.def("run_it", &run_it, "doctring for run");
+
 }
