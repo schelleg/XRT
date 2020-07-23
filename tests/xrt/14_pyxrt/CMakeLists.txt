@@ -2,7 +2,8 @@ find_package(pybind11 REQUIRED)
 set(DESTNAME pyxrt)
 
 
-list(APPEND HEADERS device kernel bo)
+# list(APPEND HEADERS device kernel bo)
+list(APPEND HEADERS pyxrt)
 foreach(HEADER IN LISTS HEADERS)
 
   pybind11_add_module(${HEADER}  ${HEADER}.cpp)

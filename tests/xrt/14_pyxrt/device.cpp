@@ -7,6 +7,7 @@ namespace py = pybind11;
 int main(){return 0;}
 PYBIND11_MODULE(device, m) {
 m.doc() = "Pybind11 module xrt_device";
+m.def("xclProbe", &xclProbe); 
 m.def("xrtDeviceOpen", &xrtDeviceOpen,
 py::arg("index"),
 "A function with name xrtDeviceOpen");
@@ -25,6 +26,12 @@ m.def("xrtDeviceGetXclbinUUID", &xrtDeviceGetXclbinUUID,
 py::arg("dhld"),
 py::arg("out"),
 "A function with name xrtDeviceGetXclbinUUID");
+
+ py::class_<xrt::uuid>(m, "uuid")
+.def(py::init<char *>())
+.def("get",&xrt::uuid::get)
+;
+ 
 py::class_<xrt::device>(m, "device")
 .def(py::init<>())
 .def(py::init<unsigned int>())
@@ -38,4 +45,8 @@ py::class_<xrt::device>(m, "device")
   // .def("get_xclbin_section", &xrt::device::get_xclbin_section) // unclear Tupes
   //.def("operatorxclDeviceHandle", &xrt::device::operatorxclDeviceHandle) // not in class
 ;
+
+
+
+ 
 }
