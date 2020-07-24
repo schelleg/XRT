@@ -132,6 +132,10 @@ run(int argc, char** argv)
 
 int main(int argc, char** argv)
 {
+
+  std::cout << "typeid(XCL_BO_SYNC_BO_TO_DEVICE).name()" << typeid(XCL_BO_SYNC_BO_TO_DEVICE).name() << "\n";
+
+
   try {
     auto ret = run(argc, argv);
     std::cout << "PASSED TEST xxx \n";

@@ -146,7 +146,17 @@ m.doc() = "Pybind11 module xrt";
 )
 .def("to_string", &uuidgraham::to_string)
 ;
+ /*
+  *
+  * Constants
+  *
+  *
+  */
+m.attr("XCL_BO_FLAGS_NONE") = py::int_(XCL_BO_FLAGS_NONE);
 
+py::enum_<xclBOSyncDirection>(m, "xclBOSyncDirection")
+    .value("XCL_BO_SYNC_BO_TO_DEVICE", xclBOSyncDirection::XCL_BO_SYNC_BO_TO_DEVICE)
+    .value("XCL_BO_SYNC_BO_FROM_DEVICE", xclBOSyncDirection::XCL_BO_SYNC_BO_FROM_DEVICE);
 
 /*
  *
@@ -326,13 +336,16 @@ py::arg("runHandle"),
 "A function with name xrtRunClose");
 
 
-
+ py::class_<ert_cmd_state>(m, "ert_cmd_state")
+.def(py::init<>())
+ ;
 
  py::class_<xrt::run>(m, "run")
 .def(py::init<>())
 .def(py::init<const xrt::kernel &>()) // init errors
 .def("start", &xrt::run::start)
-.def("wait", &xrt::run::wait)
+.def("wait", &xrt::run::wait,
+     py::arg("timeout")=0)
 .def("state", &xrt::run::state)
 .def("add_callback", &xrt::run::add_callback)
   //.def("operatorbool", &xrt::run::operatorbool)  // operator bool()
@@ -361,6 +374,10 @@ py::class_<xrt::kernel>(m, "kernel")
     //py::arg(""),
     //py::arg("exclusive")=false
 ))
+.def("__call__", [](xrt::kernel & k, py::args args){
+    return k(args);
+  }
+)
 .def("group_id", &xrt::kernel::group_id)
 .def("write_register", &xrt::kernel::write_register)
 .def("read_register", &xrt::kernel::read_register)
@@ -432,11 +449,11 @@ py::arg("skip"),
 
  
  py::class_<xrt::bo>(m, "bo")
-.def(py::init<>())
-   .def(py::init<xclDeviceHandle,void *,size_t,xrt::buffer_flags,xrt::memory_group>())
-.def(py::init<xclDeviceHandle,size_t,xrt::buffer_flags,xrt::memory_group>())
-.def(py::init<const xrt::bo &,size_t,size_t>())
-.def(py::init<const xrt::bo &>())
+   //.def(py::init<>())
+   //.def(py::init<xclDeviceHandle,void *,size_t,xrt::buffer_flags,xrt::memory_group>())
+.def(py::init<xrt::device,size_t,xrt::buffer_flags,xrt::memory_group>())
+   //.def(py::init<const xrt::bo &,size_t,size_t>())
+   //.def(py::init<const xrt::bo &>())
    //.def(py::init<xrt::bo & &>())
    // .def("operator=", &xrt::bo::operator=)
 .def("sync", &xrt::bo::sync)
