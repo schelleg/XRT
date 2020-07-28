@@ -14,10 +14,6 @@
  * under the License.
  */
 
-//#include <iostream>
-//#include <stdexcept>
-//#include <string>
-//#include <cstring>
 
 #include <iostream>
 #include <stdexcept>
@@ -30,128 +26,22 @@
 #include "experimental/xrt_kernel.h"
 #include "experimental/xrt_bo.h"
 
-// Pybind11
+// Pybind11 includes
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <pybind11/numpy.h>
-/* python 
-
-import pyxrt
-
-xclbin = '/group/xlabs-co/grahams/XRT/tests/xrt/02_simple/kernel.hw_emu.xclbin'
-device = pyxrt.device(0)
-uuid = device.load_xclbin(xclbin)
-simple = pyxrt.kernel(device, uuid.git(), 'simple')
-bo0 = pyxrt.bo(device, data_size, pyxrt.XCL_BO_FLAGS_NONE, simple.group_id(0))
-bo1 = pyxrt.bo(device, data_size, pyxrt.XCL_BO_FLAGS_NONE, simple.group_id(1))
-run = simple.run(bo0, bo1, 0x10)
-run.wait()
-
-bo0.sync(pyxrt.XCL_BO_SYNC_BO_FROM_DEVICE, data_size, 0);
-
- */
-
-/*
- if (device_index >= xclProbe())
-   pass
-
-  auto device = xrt::device(device_index);
-  auto uuid = device.load_xclbin(xclbin_fnm);
-
-
-  auto simple = xrt::kernel(device, uuid.get(), "simple");
-  auto bo0 = xrt::bo(device, DATA_SIZE, XCL_BO_FLAGS_NONE, simple.group_id(0));
-  auto bo1 = xrt::bo(device, DATA_SIZE, XCL_BO_FLAGS_NONE, simple.group_id(1));
-
-  bo0.sync(XCL_BO_SYNC_BO_TO_DEVICE, DATA_SIZE, 0);
-  bo1.sync(XCL_BO_SYNC_BO_TO_DEVICE, DATA_SIZE, 0);
-
-  auto run = simple(bo0, bo1, 0x10);
-  run.wait();
-  bo0.sync(XCL_BO_SYNC_BO_FROM_DEVICE, DATA_SIZE, 0);
-
- if (device_index >= xclProbe())
-    throw std::runtime_error("Cannot find device index (" + std::to_string(device_index) + ") specified");
-
-  auto device = xrt::device(device_index);
-  auto uuid = device.load_xclbin(xclbin_fnm);
-  run(device, uuid, verbose);
-*/
-
-class uuidgraham
-{
-public:
-  xuid_t g_uuid;
-
-  uuidgraham()
-  {
-    uuid_clear(g_uuid);
-    g_uuid[0] = 'a';
-    g_uuid[15] = 'b';
-  }
-
-  uuidgraham(const xuid_t val)
-  {
-    uuid_copy(g_uuid,val);
-    g_uuid[1] = 'x';
-  }
-
-  std::string
-  to_string() const
-  {
-    char str[40] = {0};
-    uuid_unparse_lower(g_uuid,str);
-    return str;
-  }
-  const xuid_t& get() const
-  {
-    return g_uuid;
-  }
-
-};
-
-
-
-
 
 
 namespace py = pybind11;
 
 PYBIND11_MODULE(pyxrt, m) {
 m.doc() = "Pybind11 module xrt";
-
-
-
 /*
  *
- *  
+ * Constants and Enums
  *
  *
  */
-
- py::class_<uuidgraham>(m, "uuidgraham")
-.def(py::init<>())
-.def(py::init([](py::array_t<unsigned char> u){ 
-    return new uuidgraham((unsigned char*) u.request().ptr);
-  }
-    ))
-.def("get",
-      [](uuidgraham & u){
-       py::array_t<unsigned char> result = py::array_t<unsigned char>(16);
-       py::buffer_info bufinfo = result.request();
-       unsigned char* bufptr = (unsigned char*) bufinfo.ptr;
-       memcpy(bufptr,u.get(),16);
-       return result;
-     }
-)
-.def("to_string", &uuidgraham::to_string)
-;
- /*
-  *
-  * Constants
-  *
-  *
-  */
 m.attr("XCL_BO_FLAGS_NONE") = py::int_(XCL_BO_FLAGS_NONE);
 
 py::enum_<xclBOSyncDirection>(m, "xclBOSyncDirection")
@@ -163,7 +53,6 @@ py::enum_<xclBOSyncDirection>(m, "xclBOSyncDirection")
  * XRT:: Functions
  *
  */
- 
 m.def("xclProbe", &xclProbe); 
 m.def("xrtDeviceOpen", &xrtDeviceOpen,
 py::arg("index"),
@@ -189,12 +78,10 @@ py::arg("out"),
  * XRT:: UUID (needed since UUID classes passed outside of objects)
  *
  */
-
- 
  py::class_<xrt::uuid>(m, "uuid")
-.def(py::init<char *>())
-   //.def("get",&xrt::uuid::get)
-.def("get",
+   .def(py::init<char *>())
+   //.def("get",&xrt::uuid::get) // passing out a C pointer.  Use numpy buffer protocol
+   .def("get",
       [](xrt::uuid & u){
        py::array_t<unsigned char> result = py::array_t<unsigned char>(16);
        py::buffer_info bufinfo = result.request();
@@ -205,41 +92,25 @@ py::arg("out"),
 )
 .def("to_string", &xrt::uuid::to_string)
 ;
- /*
-.def("get", 
-       [](xrt::uuid & u){
-       py::array_t<char> result = py::array_t<char>(16);
-       py::buffer_info bufinfo = result.request();
-       char* bufptr = bufinfo.ptr;
-       memcpy(bufptr,u.get(),16);
-       return result;
-       
-     }
-     )
- */
-
 
 /*
  *
  * XRT:: Device 
  *
  */
-
  
 py::class_<xrt::device>(m, "device")
 .def(py::init<>())
 .def(py::init<unsigned int>())
   //.def(py::init<const xrt::device &>())
   //.def(py::init<xrt::device & &>()) // unclear Types
-  //.def("operator=", &xrt::device::operator=) // operator()
+  //.def("operator=", &xrt::device::operator=) // operator=
   //.def("load_xclbin", &xrt::device::load_xclbin) // unclear Types
-  //.def("load_xclbin", (xrt::uuid (xrt::device::*)(const std::string&)) (&xrt::device::load_xclbin))
 .def("load_xclbin", 
        [](xrt::device & d, const std::string& xclbin){
 	 return d.load_xclbin(xclbin);
        }
      )
-  //.def("load_xclbin", &xrt::device::load_xclbin) // overloaded function
 .def("get_xclbin_uuid", &xrt::device::get_xclbin_uuid)
   // .def("get_xclbin_section", &xrt::device::get_xclbin_section) // unclear Tupes
   //.def("operatorxclDeviceHandle", &xrt::device::operatorxclDeviceHandle) // not in class
@@ -463,39 +334,5 @@ py::arg("skip"),
 .def("read", &xrt::bo::read)
    //.def("get_handle", &xrt::bo::get_handle)
 ;
-/*
- */
-
-
-
-
-
  
 }
-
-
-
-
-
-
-
-/*
-
-PYBIND11_MODULE(pyxrt, m) {
-    // optional module docstring
-    m.doc() = "pybind11 of XRT";
-    m.def("xclProbe", &xclProbe);
-    
-    py::class_<xrt::uuid>(m, "uuid")
-      .def(py::init<>())
-      .def("get", &xrt::uuid::get);
-
-    
-    py::class_<xrt::device>(m, "device")
-      .def(py::init<>())
-      .def("load_xclbin", (xrt::uuid (xrt::device::*)(const std::string&)) (&xrt::device::load_xclbin));
-
-}
-// /group/xlabs-co/grahams/XRTschelleg/src/runtime_src/core/include/experimental/xrt_device.h
-
-*/
