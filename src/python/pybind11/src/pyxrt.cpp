@@ -25,6 +25,7 @@
 #include "experimental/xrt_device.h"
 #include "experimental/xrt_kernel.h"
 #include "experimental/xrt_bo.h"
+#include "xrt.h"
 
 // Pybind11 includes
 #include <pybind11/pybind11.h>
@@ -32,7 +33,51 @@
 #include <pybind11/numpy.h>
 
 
+/*
+class bo_size : public xrt::bo
+{
+public:
+    size_t size;
+
+  XCL_DRIVER_DLLESPEC
+  bo_size(xclDeviceHandle dhld, void* userptr, size_t sz, buffer_flags flags, memory_group grp)
+    : xrt::bo(dhld, userptr, sz, flags, grp) 
+    {
+      size = sz;
+    }
+*/
+
 namespace py = pybind11;
+
+
+py::array_t<int> add_arrays(py::array_t<int> input1, py::array_t<int> input2) {
+    py::buffer_info buf1 = input1.request(), buf2 = input2.request();
+
+    if (buf1.ndim != 1 || buf2.ndim != 1)
+        throw std::runtime_error("Number of dimensions must be one");
+
+    if (buf1.size != buf2.size)
+        throw std::runtime_error("Input shapes must match");
+
+    /* No pointer is passed, so NumPy will allocate the buffer */
+    auto result = py::array_t<int>(buf1.size);
+
+    py::buffer_info buf3 = result.request();
+
+    int *ptr1 = (int *) buf1.ptr,
+           *ptr2 = (int *) buf2.ptr,
+           *ptr3 = (int *) buf3.ptr;
+
+    for (size_t idx = 0; idx < buf1.shape[0]; idx++)
+        ptr3[idx] = ptr1[idx] + ptr2[idx];
+
+    return result;
+}
+
+//PYBIND11_MODULE(test, m) {
+ 
+//}
+
 
 PYBIND11_MODULE(pyxrt, m) {
 m.doc() = "Pybind11 module for XRT";
@@ -248,7 +293,108 @@ m.def("xrtBORead", &xrtBORead,
 py::class_<xrt::bo>(m, "bo")
     .def(py::init<xrt::device,size_t,xrt::buffer_flags,xrt::memory_group>())
     .def("sync", &xrt::bo::sync)
-    .def("write", &xrt::bo::write)
-    .def("read", &xrt::bo::read)
+    .def("write", ([](xrt::bo &b, py::buffer pyb, size_t seek)  {
+        py::buffer_info info = pyb.request();
+
+	int i;
+	unsigned char* chptr = (unsigned char*) info.ptr;
+
+	std::cout << "Calling bind::writee: ";
+	//	for (int i = 0; i < COUNT; ++i) {
+	for (i=0;i<10;++i)
+	  std::cout << chptr[i] << "-";
+	std::cout << "-- \n";
+
+        b.write(info.ptr, info.itemsize * info.size , 0);
+    }))
+    .def("write2", ([](xrt::bo &b, py::array_t<int> pyb, size_t seek)  {
+        py::buffer_info info = pyb.request();
+
+	int i;
+	int* pybptr = (int*) info.ptr;
+	pybptr[0] = 8;
+	pybptr[9] = 8;
+	std::cout << "Calling bind::writee: ";
+	//	for (int i = 0; i < COUNT; ++i) {
+	for (i=0;i<10;++i)
+	  std::cout << pybptr[i] << "-";
+	std::cout << "-- \n";
+        b.write(info.ptr, info.itemsize * info.size , 0);
+    }))
+    .def("read", ([](xrt::bo &b, size_t size, size_t skip) {
+        py::array_t<unsigned char> result = py::array_t<unsigned char>(size);
+        py::buffer_info bufinfo = result.request();
+        unsigned char* bufptr = (unsigned char*) bufinfo.ptr;
+        b.read(bufptr, size, skip);
+        return result;
+     }))
+    .def("read2", ([](xrt::bo &b, size_t size, size_t skip) {
+
+	  int nitems = size/sizeof(int);
+	  py::array_t<int> result = py::array_t<int>(nitems);
+	  py::buffer_info bufinfo = result.request();
+	  int* bufptr = (int*) bufinfo.ptr;
+	  b.read(bufptr, size, skip);
+	  return result;
+     }))
+    .def("map", ([](xrt::bo &b, size_t size) {
+        py::array_t<unsigned char> result = py::array_t<unsigned char>(size);
+        py::buffer_info bufinfo = result.request();
+        unsigned char* bufptr = (unsigned char*) b.map();
+        return result;
+     }))
+    ;
+   m.def("add_arrays", &add_arrays, "Add two NumPy arrays");
+}
+
+/*
+py::class_<xrt::bo>(m, "bo")
+    .def(py::init<xrt::device,size_t,xrt::buffer_flags,xrt::memory_group>())
+    .def("sync", &xrt::bo::sync)
+    .def("write", ([](xrt::bo &b, py::buffer pyb, size_t seek)  {
+        py::buffer_info info = pyb.request();
+        b.write(info.ptr, info.itemsize * info.size , 0);
+    }))
+    .def("read", ([](xrt::bo &b, size_t size, size_t skip) {
+        py::array_t<unsigned char> result = py::array_t<unsigned char>(size);
+        py::buffer_info bufinfo = result.request();
+        unsigned char* bufptr = (unsigned char*) bufinfo.ptr;
+        b.read(bufptr, size, skip);
+        return result;
+     }))
+    .def("map", ([](xrt::bo &b, size_t size) {
+        py::array_t<unsigned char> result = py::array_t<unsigned char>(size);
+        py::buffer_info bufinfo = result.request();
+        unsigned char* bufptr = (unsigned char*) b.map();
+        return result;
+     }))
     ;
 }
+*/
+
+
+
+/*
+py::class_<bo_size>(m, "bo_size")
+    .def(py::init<xrt::device,size_t,xrt::buffer_flags,xrt::memory_group>())
+    .def("sync", &xrt::bo::sync)
+    .def("write", ([](xrt::bo &b, py::buffer pyb, size_t seek)  {
+        py::buffer_info info = pyb.request();
+        b.write(info.ptr, info.itemsize * info.size , 0);
+    }))
+    .def("read", ([](xrt::bo &b, size_t size, size_t skip) {
+        py::array_t<unsigned char> result = py::array_t<unsigned char>(size);
+        py::buffer_info bufinfo = result.request();
+        unsigned char* bufptr = (unsigned char*) bufinfo.ptr;
+        b.read(bufptr, size, skip);
+        return result;
+     }))
+    .def("map", ([](xrt::bo &b, size_t size) {
+        py::array_t<unsigned char> result = py::array_t<unsigned char>(size);
+        py::buffer_info bufinfo = result.request();
+        unsigned char* bufptr = (unsigned char*) b.map();
+        return result;
+     }))
+    ;
+}
+*/
