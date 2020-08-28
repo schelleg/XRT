@@ -19,7 +19,7 @@
 #include <stdexcept>
 #include <string>
 #include <cstring>
-
+#include <tuple>
 
 // XRT includes
 #include "experimental/xrt_device.h"
@@ -32,7 +32,7 @@
 #include <pybind11/stl.h>
 #include <pybind11/numpy.h>
 
-
+const int COUNT = 1024;
 /*
 class bo_size : public xrt::bo
 {
@@ -46,6 +46,70 @@ public:
       size = sz;
     }
 */
+
+
+
+
+int partial_app(const xrt::device& device, const xrt::uuid& uuid, xrt::kernel simple, xrt::bo bo0, xrt::bo bo1 )
+{
+  const size_t DATA_SIZE = COUNT * sizeof(int);
+
+
+  //std::cout << "debugg " << uuid.to_string() << " " <<  uuid.get() << "\n";
+
+  // auto simple = xrt::kernel(device, uuid.get(), "simple");
+  // auto bo0 = xrt::bo(device, DATA_SIZE, XCL_BO_FLAGS_NONE, simple.group_id(0));
+  // auto bo1 = xrt::bo(device, DATA_SIZE, XCL_BO_FLAGS_NONE, simple.group_id(1));
+  auto bo0_map = bo0.map<int*>();
+  //auto bo1_map = bo1.map<int*>();
+  //std::fill(bo0_map, bo0_map + COUNT, 0);
+  //std::fill(bo1_map, bo1_map + COUNT, 0);
+
+  // Fill our data sets with pattern
+  int i;
+  int foo = 0x10;
+  int bufReference[COUNT];
+  for (int i = 0; i < COUNT; ++i) {
+    //bo0_map[i] = 0;
+    //bo1_map[i] = i;
+    bufReference[i] = i + i * foo;
+  }
+
+  // bo0.sync(XCL_BO_SYNC_BO_TO_DEVICE, DATA_SIZE, 0);
+  // bo1.sync(XCL_BO_SYNC_BO_TO_DEVICE, DATA_SIZE, 0);
+
+  auto run = simple(bo0, bo1, 0x10);
+  run.wait();
+
+  std::cout << "Returning before syncs" << std::endl;
+  return 0;
+  
+  //Get the output;
+  std::cout << "Get the output data from the device" << std::endl;
+  bo0.sync(XCL_BO_SYNC_BO_FROM_DEVICE, DATA_SIZE, 0);
+
+
+  
+  // Validate our results
+  if (std::memcmp(bo0_map, bufReference, DATA_SIZE)){
+
+    std::cout << "pst bo0 sync::bo0_map values: ";
+    for (i=0;i<1024;++i)
+      std::cout << '(' << bo0_map[i] << "-" << bufReference[i] << ')' ;
+    std::cout << "-- \n";
+    
+    throw std::runtime_error("Value read back does not match reference");
+  }
+  else
+    std::cout << "PASS \n";
+
+  return 0;
+
+}
+
+
+
+
 
 namespace py = pybind11;
 
@@ -73,6 +137,10 @@ py::array_t<int> add_arrays(py::array_t<int> input1, py::array_t<int> input2) {
 
     return result;
 }
+
+// based on the run call in 02_simple
+
+
 
 //PYBIND11_MODULE(test, m) {
  
@@ -234,8 +302,22 @@ py::class_<xrt::kernel>(m, "kernel")
     .def(py::init([](xrt::device d, const py::array_t<unsigned char> u, const std::string & n, bool e){
         return new xrt::kernel(d, (const unsigned char*) u.request().ptr, n, e);
     }))
-    .def("__call__", [](xrt::kernel & k, py::args args){
-        return k(args);
+  .def("__call__", [](xrt::kernel & k, xrt::bo & bo0, xrt::bo & bo1, int num) -> xrt::run {
+      return k(bo0, bo1, num);
+    })
+  .def("wargs_call", [](xrt::kernel & k, py::args args) -> xrt::run {
+	int i =0;
+	
+	for (auto item : args) {
+	  std::cout << "Kernel call args: " << i++ << " " << item << " " << "\n";
+	}
+
+	// std::cout << "Kernel call args: " << t << "\n";
+	// std::cout << "Kernel call arg0:   " << std::get<0>(args) << "\n";
+	// std::cout << "Kernel call tuple0: " << std::get<0>(t) << "\n";
+	
+	return k(*args); // no hang, no results
+	
     })
     .def("group_id", &xrt::kernel::group_id)
     .def("write_register", &xrt::kernel::write_register)
@@ -292,51 +374,32 @@ m.def("xrtBORead", &xrtBORead,
 
 py::class_<xrt::bo>(m, "bo")
     .def(py::init<xrt::device,size_t,xrt::buffer_flags,xrt::memory_group>())
-    .def("sync", &xrt::bo::sync)
-    .def("write", ([](xrt::bo &b, py::buffer pyb, size_t seek)  {
-        py::buffer_info info = pyb.request();
+    .def("write", ([](xrt::bo &b, py::array_t<int> pyb, size_t seek)  {
 
-	int i;
-	unsigned char* chptr = (unsigned char*) info.ptr;
-
-	std::cout << "Calling bind::writee: ";
-	//	for (int i = 0; i < COUNT; ++i) {
-	for (i=0;i<10;++i)
-	  std::cout << chptr[i] << "-";
-	std::cout << "-- \n";
-
-        b.write(info.ptr, info.itemsize * info.size , 0);
-    }))
-    .def("write2", ([](xrt::bo &b, py::array_t<int> pyb, size_t seek)  {
-        py::buffer_info info = pyb.request();
-
-	int i;
+	  py::buffer_info info = pyb.request();
 	int* pybptr = (int*) info.ptr;
-	pybptr[0] = 8;
-	pybptr[9] = 8;
-	std::cout << "Calling bind::writee: ";
-	//	for (int i = 0; i < COUNT; ++i) {
-	for (i=0;i<10;++i)
+	
+	std::cout << "Calling bind::write: ";
+	for (int i=0;i<10;++i)
 	  std::cout << pybptr[i] << "-";
 	std::cout << "-- \n";
         b.write(info.ptr, info.itemsize * info.size , 0);
     }))
     .def("read", ([](xrt::bo &b, size_t size, size_t skip) {
-        py::array_t<unsigned char> result = py::array_t<unsigned char>(size);
-        py::buffer_info bufinfo = result.request();
-        unsigned char* bufptr = (unsigned char*) bufinfo.ptr;
-        b.read(bufptr, size, skip);
-        return result;
-     }))
-    .def("read2", ([](xrt::bo &b, size_t size, size_t skip) {
-
 	  int nitems = size/sizeof(int);
 	  py::array_t<int> result = py::array_t<int>(nitems);
+	  
 	  py::buffer_info bufinfo = result.request();
 	  int* bufptr = (int*) bufinfo.ptr;
 	  b.read(bufptr, size, skip);
 	  return result;
      }))
+  .def("sync", ([](xrt::bo &b, xclBOSyncDirection dir, size_t size, size_t offset)  {
+
+	std::cout << "Calling bo:sync2: " << dir << ' ' << size << ' ' << offset << "\n";	
+	b.sync(dir, size, offset);
+
+      }))
     .def("map", ([](xrt::bo &b, size_t size) {
         py::array_t<unsigned char> result = py::array_t<unsigned char>(size);
         py::buffer_info bufinfo = result.request();
@@ -345,56 +408,5 @@ py::class_<xrt::bo>(m, "bo")
      }))
     ;
    m.def("add_arrays", &add_arrays, "Add two NumPy arrays");
+   m.def("partial_app", &partial_app, "");
 }
-
-/*
-py::class_<xrt::bo>(m, "bo")
-    .def(py::init<xrt::device,size_t,xrt::buffer_flags,xrt::memory_group>())
-    .def("sync", &xrt::bo::sync)
-    .def("write", ([](xrt::bo &b, py::buffer pyb, size_t seek)  {
-        py::buffer_info info = pyb.request();
-        b.write(info.ptr, info.itemsize * info.size , 0);
-    }))
-    .def("read", ([](xrt::bo &b, size_t size, size_t skip) {
-        py::array_t<unsigned char> result = py::array_t<unsigned char>(size);
-        py::buffer_info bufinfo = result.request();
-        unsigned char* bufptr = (unsigned char*) bufinfo.ptr;
-        b.read(bufptr, size, skip);
-        return result;
-     }))
-    .def("map", ([](xrt::bo &b, size_t size) {
-        py::array_t<unsigned char> result = py::array_t<unsigned char>(size);
-        py::buffer_info bufinfo = result.request();
-        unsigned char* bufptr = (unsigned char*) b.map();
-        return result;
-     }))
-    ;
-}
-*/
-
-
-
-/*
-py::class_<bo_size>(m, "bo_size")
-    .def(py::init<xrt::device,size_t,xrt::buffer_flags,xrt::memory_group>())
-    .def("sync", &xrt::bo::sync)
-    .def("write", ([](xrt::bo &b, py::buffer pyb, size_t seek)  {
-        py::buffer_info info = pyb.request();
-        b.write(info.ptr, info.itemsize * info.size , 0);
-    }))
-    .def("read", ([](xrt::bo &b, size_t size, size_t skip) {
-        py::array_t<unsigned char> result = py::array_t<unsigned char>(size);
-        py::buffer_info bufinfo = result.request();
-        unsigned char* bufptr = (unsigned char*) bufinfo.ptr;
-        b.read(bufptr, size, skip);
-        return result;
-     }))
-    .def("map", ([](xrt::bo &b, size_t size) {
-        py::array_t<unsigned char> result = py::array_t<unsigned char>(size);
-        py::buffer_info bufinfo = result.request();
-        unsigned char* bufptr = (unsigned char*) b.map();
-        return result;
-     }))
-    ;
-}
-*/
