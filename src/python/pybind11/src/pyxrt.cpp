@@ -20,6 +20,7 @@
 #include <string>
 #include <cstring>
 #include <tuple>
+#include <typeinfo>
 
 // XRT includes
 #include "experimental/xrt_device.h"
@@ -32,198 +33,7 @@
 #include <pybind11/stl.h>
 #include <pybind11/numpy.h>
 
-const int COUNT = 1024;
-/*
-class bo_size : public xrt::bo
-{
-public:
-    size_t size;
-
-  XCL_DRIVER_DLLESPEC
-  bo_size(xclDeviceHandle dhld, void* userptr, size_t sz, buffer_flags flags, memory_group grp)
-    : xrt::bo(dhld, userptr, sz, flags, grp) 
-    {
-      size = sz;
-    }
-*/
-
-
-
-// http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2013/n3658.html
-template<typename F, typename Tuple, size_t... I>
-  auto
-apply_(F&& f, Tuple&& args, std::index_sequence<I...>)
-  -> decltype(std::forward<F>(f)(std::get<I>(std::forward<Tuple>(args))...))
-  {
-    return std::forward<F>(f)(std::get<I>(std::forward<Tuple>(args))...);
-  }
-
-template<typename F, typename Tuple,
-         typename Indices = std::make_index_sequence<std::tuple_size<Tuple>::value>>
-  auto
-  applyit(F&& f, Tuple&& args)
-  -> decltype(apply_(std::forward<F>(f), std::forward<Tuple>(args), Indices()))
-  {
-    return apply_(std::forward<F>(f), std::forward<Tuple>(args), Indices());
-  }
-
-
-/*
-template<typename Function, typename Tuple, std::size_t... I>
-auto call2(Function f, Tuple t, std::index_sequence<I...>)
-{
-     return f(std::get<I>(t)...);
-}
-
-template<typename Function, typename Tuple>
-auto call(Function f, Tuple t)
-{
-    static constexpr auto size = std::tuple_size<Tuple>::value;
-    return call2(f, t, std::make_index_sequence<size>{});
-}
-*/
-
-
-/*
-template<typename Function, typename Tuple, size_t ... I>
-auto callit(Function f, Tuple t, std::index_sequence<I ...>)
-{
-     return f(std::get<I>(t) ...);
-}
-
-template<typename Function, typename Tuple>
-auto callit(Function f, Tuple t)
-{
-    static constexpr auto size = std::tuple_size<Tuple>::value;
-    return callit(f, t, std::make_index_sequence<size>{});
-}
-*/
-
-template <typename ArgType>
-void
-packed_set_arg(int argno, ArgType arg)
-  {
-    std::cout << "(int,arg) setting argno " << argno << " " << arg << "\n";
-  }
-
-// https://github.com/schelleg/XRT/blob/pybind11/src/runtime_src/core/include/experimental/xrt_kernel.h#L265
-// xrt::run::set_arg
-template<typename ArgType, typename ...Args>
-void
-packed_set_arg(int argno, ArgType arg, Args&&... args)
-{
-  std::cout << "(int, arg, ... args) setting argno " << argno << " " << arg << "\n";
-  packed_set_arg(++argno, std::forward<Args>(args)...);
-}
-
-// https://github.com/schelleg/XRT/blob/pybind11/src/runtime_src/core/include/experimental/xrt_kernel.h#L230
-// xrt::run::operator()
-template<typename ...Args>
-void
-packed_fx(Args&&... args)
-{
-  packed_set_arg(0, std::forward<Args>(args)...);
-  return;
-  
-}
-
-
-int partial_app(const xrt::device& device, const xrt::uuid& uuid, xrt::kernel simple, xrt::bo bo0, xrt::bo bo1 )
-{
-  const size_t DATA_SIZE = COUNT * sizeof(int);
-
-
-  //std::cout << "debugg " << uuid.to_string() << " " <<  uuid.get() << "\n";
-
-  // auto simple = xrt::kernel(device, uuid.get(), "simple");
-  // auto bo0 = xrt::bo(device, DATA_SIZE, XCL_BO_FLAGS_NONE, simple.group_id(0));
-  // auto bo1 = xrt::bo(device, DATA_SIZE, XCL_BO_FLAGS_NONE, simple.group_id(1));
-  auto bo0_map = bo0.map<int*>();
-  //auto bo1_map = bo1.map<int*>();
-  //std::fill(bo0_map, bo0_map + COUNT, 0);
-  //std::fill(bo1_map, bo1_map + COUNT, 0);
-
-  // Fill our data sets with pattern
-  int i;
-  int foo = 0x10;
-  int bufReference[COUNT];
-  for (int i = 0; i < COUNT; ++i) {
-    //bo0_map[i] = 0;
-    //bo1_map[i] = i;
-    bufReference[i] = i + i * foo;
-  }
-
-  // bo0.sync(XCL_BO_SYNC_BO_TO_DEVICE, DATA_SIZE, 0);
-  // bo1.sync(XCL_BO_SYNC_BO_TO_DEVICE, DATA_SIZE, 0);
-
-  auto run = simple(bo0, bo1, 0x10);
-  run.wait();
-
-  std::cout << "Returning before syncs" << std::endl;
-  return 0;
-  
-  //Get the output;
-  std::cout << "Get the output data from the device" << std::endl;
-  bo0.sync(XCL_BO_SYNC_BO_FROM_DEVICE, DATA_SIZE, 0);
-
-
-  
-  // Validate our results
-  if (std::memcmp(bo0_map, bufReference, DATA_SIZE)){
-
-    std::cout << "pst bo0 sync::bo0_map values: ";
-    for (i=0;i<1024;++i)
-      std::cout << '(' << bo0_map[i] << "-" << bufReference[i] << ')' ;
-    std::cout << "-- \n";
-    
-    throw std::runtime_error("Value read back does not match reference");
-  }
-  else
-    std::cout << "PASS \n";
-
-  return 0;
-
-}
-
-
-
-
-
 namespace py = pybind11;
-
-
-py::array_t<int> add_arrays(py::array_t<int> input1, py::array_t<int> input2) {
-    py::buffer_info buf1 = input1.request(), buf2 = input2.request();
-
-    if (buf1.ndim != 1 || buf2.ndim != 1)
-        throw std::runtime_error("Number of dimensions must be one");
-
-    if (buf1.size != buf2.size)
-        throw std::runtime_error("Input shapes must match");
-
-    /* No pointer is passed, so NumPy will allocate the buffer */
-    auto result = py::array_t<int>(buf1.size);
-
-    py::buffer_info buf3 = result.request();
-
-    int *ptr1 = (int *) buf1.ptr,
-           *ptr2 = (int *) buf2.ptr,
-           *ptr3 = (int *) buf3.ptr;
-
-    for (size_t idx = 0; idx < buf1.shape[0]; idx++)
-        ptr3[idx] = ptr1[idx] + ptr2[idx];
-
-    return result;
-}
-
-// based on the run call in 02_simple
-
-
-
-//PYBIND11_MODULE(test, m) {
- 
-//}
-
 
 PYBIND11_MODULE(pyxrt, m) {
 m.doc() = "Pybind11 module for XRT";
@@ -367,11 +177,18 @@ py::class_<ert_cmd_state>(m, "ert_cmd_state")
     ;
 
  py::class_<xrt::run>(m, "run")
-    .def(py::init<>())
-    .def(py::init<const xrt::kernel &>()) // init errors
-    .def("start", &xrt::run::start)
-    .def("wait", &xrt::run::wait,
-        py::arg("timeout")=0)
+   .def(py::init<>())
+   .def(py::init<const xrt::kernel &>()) 
+   .def("start", &xrt::run::start)
+   .def("set_arg", [](xrt::run & r, int i, xrt::bo & item){
+       r.set_arg(i, item);
+     })
+   .def("set_arg", [](xrt::run & r, int i, int & item){
+       r.set_arg<int>(i, item);
+     })  
+   .def("wait", [](xrt::run & r) {
+       r.wait();
+     })
     .def("state", &xrt::run::state)
     .def("add_callback", &xrt::run::add_callback)
     ;
@@ -380,27 +197,52 @@ py::class_<xrt::kernel>(m, "kernel")
     .def(py::init([](xrt::device d, const py::array_t<unsigned char> u, const std::string & n, bool e){
         return new xrt::kernel(d, (const unsigned char*) u.request().ptr, n, e);
     }))
-  .def("__call__", [](xrt::kernel & k, xrt::bo & bo0, xrt::bo & bo1, int num) -> xrt::run {
-      return k(bo0, bo1, num);
-    })
-  .def("wargs_call", [](xrt::kernel & k, py::args args) -> xrt::run {
+  .def("__call__", [](xrt::kernel & k, py::args args) -> xrt::run {
+      //  .def("__call__", [](xrt::kernel & k, xrt::bo & bo0, xrt::bo & bo1, int num) -> xrt::run {      
 	int i =0;
-	
+	xrt::run r(k);
 	for (auto item : args) {
-	  std::cout << "Kernel call args: " << i++ << " " << item << " " << "\n";
-	}
+	  try 
+	    { r.set_arg(i, item.cast<xrt::bo>()); }
+	  catch (std::exception e) {  }
+	  
+	  try 
+	    { r.set_arg<int>(i, item.cast<int>()); }
+	  catch (std::exception e) {  }
+	  
+	  i++;
+	}	
+	r.start();
+	return r;
 
-	// std::cout << "Kernel call args: " << t << "\n";
-	// std::cout << "Kernel call arg0:   " << std::get<0>(args) << "\n";
-	// std::cout << "Kernel call tuple0: " << std::get<0>(t) << "\n";
-	// std::apply(packed_fx, args); // need C++ 17
 
-	packed_fx(args); // args is a Tuple
-	//std::tuple<int, double, int*> t;
-	//call(packed_fx, args);
-	return k(args); // no hang, no results
-	
-	
+      //return k(bo0, bo1, num);
+    })
+  .def("setargs_call", [](xrt::kernel & k, xrt::bo & bo0, xrt::bo & bo1, int num) -> xrt::run {
+	int i =0;
+	xrt::run r(k);
+	r.set_arg(0, bo0);
+	r.set_arg(1, bo1);
+	r.set_arg<int>(2, num);	
+	r.start();
+	return r;
+    })
+  .def("setargs_like_operator", [](xrt::kernel & k, py::args args) -> xrt::run { 
+	int i =0;
+	xrt::run r(k);
+	for (auto item : args) {
+	  try 
+	    { r.set_arg(i, item.cast<xrt::bo>()); }
+	  catch (std::exception e) {  }
+	  
+	  try 
+	    { r.set_arg<int>(i, item.cast<int>()); }
+	  catch (std::exception e) {  }
+	  
+	  i++;
+	}	
+	r.start();
+	return r;
     })
     .def("group_id", &xrt::kernel::group_id)
     .def("write_register", &xrt::kernel::write_register)
@@ -458,15 +300,10 @@ m.def("xrtBORead", &xrtBORead,
 py::class_<xrt::bo>(m, "bo")
     .def(py::init<xrt::device,size_t,xrt::buffer_flags,xrt::memory_group>())
     .def("write", ([](xrt::bo &b, py::array_t<int> pyb, size_t seek)  {
-
 	  py::buffer_info info = pyb.request();
-	int* pybptr = (int*) info.ptr;
-	
-	std::cout << "Calling bind::write: ";
-	for (int i=0;i<10;++i)
-	  std::cout << pybptr[i] << "-";
-	std::cout << "-- \n";
-        b.write(info.ptr, info.itemsize * info.size , 0);
+	  int* pybptr = (int*) info.ptr;
+
+	  b.write(info.ptr, info.itemsize * info.size , 0);
     }))
     .def("read", ([](xrt::bo &b, size_t size, size_t skip) {
 	  int nitems = size/sizeof(int);
@@ -477,19 +314,8 @@ py::class_<xrt::bo>(m, "bo")
 	  b.read(bufptr, size, skip);
 	  return result;
      }))
-  .def("sync", ([](xrt::bo &b, xclBOSyncDirection dir, size_t size, size_t offset)  {
-
-	std::cout << "Calling bo:sync2: " << dir << ' ' << size << ' ' << offset << "\n";	
+  .def("sync", ([](xrt::bo &b, xclBOSyncDirection dir, size_t size, size_t offset)  {	
 	b.sync(dir, size, offset);
-
       }))
-    .def("map", ([](xrt::bo &b, size_t size) {
-        py::array_t<unsigned char> result = py::array_t<unsigned char>(size);
-        py::buffer_info bufinfo = result.request();
-        unsigned char* bufptr = (unsigned char*) b.map();
-        return result;
-     }))
     ;
-   m.def("add_arrays", &add_arrays, "Add two NumPy arrays");
-   m.def("partial_app", &partial_app, "");
 }
