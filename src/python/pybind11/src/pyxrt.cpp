@@ -58,24 +58,6 @@ py::enum_<xclBOSyncDirection>(m, "xclBOSyncDirection")
  */
 m.def("xclProbe", &xclProbe); 
 
-m.def("xrtDeviceOpen", &xrtDeviceOpen,
-    py::arg("index"));
-
-m.def("xrtDeviceClose", &xrtDeviceClose,
-    py::arg("dhdl"));
-
-m.def("xrtDeviceLoadXclbin", &xrtDeviceLoadXclbin,
-    py::arg("dhdl"),
-    py::arg("xclbin"));
-
-m.def("xrtDeviceLoadXclbinFile", &xrtDeviceLoadXclbinFile,
-    py::arg("dhdl"),
-    py::arg("xclbin_filename"));
-
-m.def("xrtDeviceGetXclbinUUID", &xrtDeviceGetXclbinUUID,
-    py::arg("dhld"),
-    py::arg("out"));
-
 
 /*
  *
@@ -119,64 +101,7 @@ py::class_<xrt::device>(m, "device")
  * XRT::Kernel
  *
  */
-m.def("xrtPLKernelOpen", &xrtPLKernelOpen,
-    py::arg("deviceHandle"),
-    py::arg("xclbinId"),
-    py::arg("name"));
-
-m.def("xrtPLKernelOpenExclusive", &xrtPLKernelOpenExclusive,
-    py::arg("deviceHandle"),
-    py::arg("xclbinId"),
-    py::arg("name"));
-
-m.def("xrtKernelClose", &xrtKernelClose,
-    py::arg("kernelHandle"));
-
-m.def("xrtKernelArgGroupId", &xrtKernelArgGroupId,
-    py::arg("kernelHandle"),
-    py::arg("argno"));
-
-m.def("xrtKernelReadRegister", &xrtKernelReadRegister,
-    py::arg(""),
-    py::arg("offset"),
-    py::arg("datap"));
-
-m.def("xrtKernelWriteRegister", &xrtKernelWriteRegister,
-    py::arg(""),
-    py::arg("offset"),
-    py::arg("data"));
-
-m.def("xrtRunOpen", &xrtRunOpen,
-    py::arg("kernelHandle"));
-
-m.def("xrtRunStart", &xrtRunStart,
-    py::arg("runHandle"));
-
-m.def("xrtRunWait", &xrtRunWait,
-    py::arg("runHandle"));
-
-m.def("xrtRunWaitFor", &xrtRunWaitFor,
-    py::arg("runHandle"),
-    py::arg("timeout_ms"));
-
-m.def("xrtRunState", &xrtRunState,
-    py::arg("runHandle"));
-
-m.def("xrtRunSetCallback", &xrtRunSetCallback,
-    py::arg("runHandle"),
-    py::arg("state"),
-    py::arg(""),
-    py::arg("data"));
-
-m.def("xrtRunClose", &xrtRunClose,
-    py::arg("runHandle"));
-
-
-py::class_<ert_cmd_state>(m, "ert_cmd_state")
-    .def(py::init<>())
-    ;
-
- py::class_<xrt::run>(m, "run")
+py::class_<xrt::run>(m, "run")
    .def(py::init<>())
    .def(py::init<const xrt::kernel &>()) 
    .def("start", &xrt::run::start)
@@ -197,10 +122,10 @@ py::class_<xrt::kernel>(m, "kernel")
     .def(py::init([](xrt::device d, const py::array_t<unsigned char> u, const std::string & n, bool e){
         return new xrt::kernel(d, (const unsigned char*) u.request().ptr, n, e);
     }))
-  .def("__call__", [](xrt::kernel & k, py::args args) -> xrt::run {
-      //  .def("__call__", [](xrt::kernel & k, xrt::bo & bo0, xrt::bo & bo1, int num) -> xrt::run {      
+  .def("__call__", [](xrt::kernel & k, py::args args) -> xrt::run {    
 	int i =0;
 	xrt::run r(k);
+	
 	for (auto item : args) {
 	  try 
 	    { r.set_arg(i, item.cast<xrt::bo>()); }
@@ -211,36 +136,8 @@ py::class_<xrt::kernel>(m, "kernel")
 	  catch (std::exception e) {  }
 	  
 	  i++;
-	}	
-	r.start();
-	return r;
-
-
-      //return k(bo0, bo1, num);
-    })
-  .def("setargs_call", [](xrt::kernel & k, xrt::bo & bo0, xrt::bo & bo1, int num) -> xrt::run {
-	int i =0;
-	xrt::run r(k);
-	r.set_arg(0, bo0);
-	r.set_arg(1, bo1);
-	r.set_arg<int>(2, num);	
-	r.start();
-	return r;
-    })
-  .def("setargs_like_operator", [](xrt::kernel & k, py::args args) -> xrt::run { 
-	int i =0;
-	xrt::run r(k);
-	for (auto item : args) {
-	  try 
-	    { r.set_arg(i, item.cast<xrt::bo>()); }
-	  catch (std::exception e) {  }
-	  
-	  try 
-	    { r.set_arg<int>(i, item.cast<int>()); }
-	  catch (std::exception e) {  }
-	  
-	  i++;
-	}	
+	}
+	
 	r.start();
 	return r;
     })
@@ -255,48 +152,6 @@ py::class_<xrt::kernel>(m, "kernel")
  * XRT:: BO
  *
  */
-m.def("xrtBOAllocUserPtr", &xrtBOAllocUserPtr,
-    py::arg("dhdl"),
-    py::arg("userptr"),
-    py::arg("size"),
-    py::arg("flags"),
-    py::arg("grp"));
-
-m.def("xrtBOAlloc", &xrtBOAlloc,
-    py::arg("dhdl"),
-    py::arg("size"),
-    py::arg("flags"),
-    py::arg("grp"));
-
-m.def("xrtBOSubAlloc", &xrtBOSubAlloc,
-    py::arg("parent"),
-    py::arg("size"),
-    py::arg("offset"));
-
-m.def("xrtBOFree", &xrtBOFree,
-    py::arg("handle"));
- 
-m.def("xrtBOSync", &xrtBOSync,
-    py::arg("handle"),
-    py::arg("dir"),
-    py::arg("size"),
-    py::arg("offset"));
-
-m.def("xrtBOMap", &xrtBOMap,
-    py::arg("handle"));
-
-m.def("xrtBOWrite", &xrtBOWrite,
-    py::arg("handle"),
-    py::arg("src"),
-    py::arg("size"),
-    py::arg("seek"));
-
-m.def("xrtBORead", &xrtBORead,
-    py::arg("handle"),
-    py::arg("dst"),
-    py::arg("size"),
-    py::arg("skip"));
-
 py::class_<xrt::bo>(m, "bo")
     .def(py::init<xrt::device,size_t,xrt::buffer_flags,xrt::memory_group>())
     .def("write", ([](xrt::bo &b, py::array_t<int> pyb, size_t seek)  {
