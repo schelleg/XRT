@@ -38,3 +38,7 @@ include_directories(${XILINX_XRT}/include)
 pybind11_add_module(pyxrt src/pyxrt.cpp)
 target_link_libraries(pyxrt PRIVATE ${xrt_coreutil_LIBRARY})
 target_link_libraries(pyxrt PRIVATE ${uuid_LIBRARY} pthread)
+
+file(GLOB PYTHON_SO "*.so")
+install(FILES ${PYTHON_SO} DESTINATION ${PY_INSTALL_DIR})
+
