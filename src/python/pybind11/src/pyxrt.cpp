@@ -105,7 +105,11 @@ py::class_<xrt::run>(m, "run")
 py::class_<xrt::kernel>(m, "kernel")
     .def(py::init([](xrt::device d, const py::array_t<unsigned char> u, const std::string & n, bool e){
         return new xrt::kernel(d, (const unsigned char*) u.request().ptr, n, e);
-    }))
+	}),	
+	py::arg(""),
+	py::arg(""),
+	py::arg(""),	
+	py::arg("exclusive")=false)
   .def("__call__", [](xrt::kernel & k, py::args args) -> xrt::run {    
 	int i =0;
 	xrt::run r(k);
@@ -138,11 +142,9 @@ py::class_<xrt::kernel>(m, "kernel")
  */
 py::class_<xrt::bo>(m, "bo")
     .def(py::init<xrt::device,size_t,xrt::buffer_flags,xrt::memory_group>())
-    .def("write", ([](xrt::bo &b, py::array_t<int> pyb, size_t seek)  {
+    .def("write", ([](xrt::bo &b, py::buffer pyb, size_t seek)  {
 	  py::buffer_info info = pyb.request();
-	  int* pybptr = (int*) info.ptr;
-
-	  b.write(info.ptr, info.itemsize * info.size , 0);
+	  b.write(info.ptr, info.itemsize * info.size , seek);
     }))
     .def("read", ([](xrt::bo &b, size_t size, size_t skip) {
 	  int nitems = size/sizeof(int);
