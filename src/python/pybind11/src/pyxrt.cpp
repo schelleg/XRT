@@ -93,7 +93,7 @@ py::class_<xrt::run>(m, "run")
        r.set_arg(i, item);
      })
    .def("set_arg", [](xrt::run & r, int i, int & item){
-       r.set_arg<int>(i, item);
+       r.set_arg<int&>(i, item);
      })  
    .def("wait", [](xrt::run & r) {
        r.wait();
