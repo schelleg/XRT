@@ -141,7 +141,7 @@ py::class_<xrt::kernel>(m, "kernel")
  *
  */
 py::class_<xrt::bo>(m, "bo")
-    .def(py::init<xrt::device,size_t,xrt::buffer_flags,xrt::memory_group>())
+    .def(py::init<xrt::device,size_t,xrt::memory_group>())
     .def(py::init<xrt::bo, size_t, size_t>())
     .def("write", ([](xrt::bo &b, py::buffer pyb, size_t seek)  {
 	  py::buffer_info info = pyb.request();
